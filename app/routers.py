@@ -5,7 +5,7 @@ from fastapi_cache.decorator import cache
 
 from app.schemas import STask
 from app.service import TaskService
-# from app.services.rabbitmq import publish_task
+from app.services.rabbitmq import publish_task
 
 router = APIRouter()
 
@@ -18,13 +18,14 @@ async def create_new_task(number: int, title: str, description: str) -> STask:
     if existing_task:
         raise HTTPException(status_code=400, detail="Task with this number already exists")
     TASKS_CREATED.inc()
-    # await publish_task(number=number, title=title, description=description)
+    await publish_task(number=number, title=title, description=description)
     return await TaskService.add(number=number, title=title, description=description)
 
 @router.get("/tasks/")
 @cache(expire=30)
 async def get_all_tasks() -> List[STask]:
-    return await TaskService.find_all()
+    tasks = await TaskService.find_all()
+    return tasks
 
 @router.get("/tasks/task")
 @cache(expire=30)

@@ -1,53 +1,77 @@
-# import asyncio
-# import json
-# import os
-#
-#
-# import aio_pika
-# from telegram import Bot
-# from telegram.constants import ParseMode
-# from telegram.error import TelegramError
-#
-#
-# RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-# TELEGRAM_BOT_TOKEN = 'так уж и быть скажу будто бы, а env мне лень было писать и отдельный конфиг файл так что простите'
-#
-# # Initialize the bot
-# bot = Bot(token=TELEGRAM_BOT_TOKEN)
-#
-# async def main():
-#     try:
-#         connection = await aio_pika.connect_robust(RABBITMQ_URL)
-#
-#         async with connection:
-#             channel = await connection.channel()
-#             queue = await channel.declare_queue("telegram_notifications", durable=True)
-#
-#             async with queue.iterator() as queue_iter:
-#                 async for message in queue_iter:
-#                     async with message.process():
-#                         try:
-#                             # Parse the message body
-#                             body = json.loads(message.body.decode())
-#                             number = body.get("number")
-#                             title = body.get("title")
-#                             description = body.get("description")
-#                             chat_id = body.get("chat_id")
-#
-#                             # Send the message to Telegram
-#                             await send_telegram_message(number, title, description, chat_id)
-#                         except Exception as e:
-#                             print(f"Error processing message: {e}")
-#     except Exception as e:
-#         print(f"Error connecting to RabbitMQ: {e}")
-#         await asyncio.sleep(5)
-#         await main()  # Retry connecting
-#
-# async def send_telegram_message(number: int, title: str, description: str, chat_id=None):
-#     try:
-#         message = f"<b>Task #{number}</b>\n<b>Title:</b> {title}\n<b>Description:</b> {description}"
-#
-#         await bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.HTML)
-#
-# if __name__ == "__main__":
-#     asyncio.run(main())
+import asyncio
+import json
+import aio_pika
+from telegram import Bot, Update
+from telegram.constants import ParseMode
+from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.error import TelegramError
+
+RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
+TELEGRAM_BOT_TOKEN = token
+
+chat_id_storage = set()
+
+async def send_telegram_message(bot: Bot, chat_id: int, number: int, title: str, description: str):
+    try:
+        message = (
+            f"Create new task:\n"
+            f"<b>Task #{number}</b>\n"
+            f"<b>Title:</b> {title}\n"
+            f"<b>Description:</b> {description}"
+        )
+        await bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.HTML)
+    except TelegramError as e:
+        print(f"Error sending message to Telegram: {e}")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    chat_id_storage.add(chat_id)
+    await update.message.reply_text("✅ Бот активирован! Теперь вы будете получать уведомления.")
+
+async def consume_rabbitmq(bot: Bot):
+    while True:
+        try:
+            connection = await aio_pika.connect_robust(RABBITMQ_URL)
+            async with connection:
+                channel = await connection.channel()
+                queue = await channel.declare_queue("telegram_notifications", durable=True)
+
+                async with queue.iterator() as queue_iter:
+                    async for message in queue_iter:
+                        async with message.process():
+                            try:
+                                body = json.loads(message.body.decode())
+                                number = body.get("number")
+                                title = body.get("title")
+                                description = body.get("description")
+                                target_chat_id = body.get("chat_id")
+
+                                if target_chat_id:
+                                    await send_telegram_message(bot, target_chat_id, number, title, description)
+                                else:
+                                    for chat_id in chat_id_storage:
+                                        await send_telegram_message(bot, chat_id, number, title, description)
+
+                            except Exception as e:
+                                print(f"Error processing message: {e}")
+
+        except Exception as e:
+            print(f"Error connecting to RabbitMQ: {e}")
+            await asyncio.sleep(5)
+
+async def main():
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+
+    await application.initialize()
+    await application.start()
+    print("Бот запущен!")
+
+    rabbitmq_task = asyncio.create_task(consume_rabbitmq(application.bot))
+
+    await application.updater.start_polling()
+    await rabbitmq_task
+
+if __name__ == "__main__":
+    asyncio.run(main())

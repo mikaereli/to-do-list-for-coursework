@@ -13,7 +13,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    redis = aioredis.from_url("redis://localhost:6379", encoding="utf-8", decode_responses=True)
+    redis = aioredis.from_url("redis://redis:6379/", encoding="utf-8", decode_responses=True)
     try:
         await redis.ping()
         print("Redis connection established")
