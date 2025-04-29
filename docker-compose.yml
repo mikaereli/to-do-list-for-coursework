@@ -1,41 +1,6 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
-    ports:
-      - "8000:8000"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/to-do-list
-      - REDIS_URL=redis://redis:6379/0
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - PYTHONPATH=/app
-    volumes:
-      - .:/app
-    networks:
-      - app-network
-
-  consumer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      - rabbitmq
-    environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - TELEGRAM_BOT_TOKEN=7866422786:AAFRyIUIp734dKU3UEMG8e9R7ExvhLmcCMY
-      - PYTHONPATH=/app
-    command: python -m app.services.consumer
-    volumes:
-      - .:/app
-    networks:
-      - app-network
 
   postgres:
     image: postgres:14
@@ -51,11 +16,49 @@ services:
       - app-network
 
   redis:
-    image: redis:6
+    image: redis:7
     ports:
       - "6379:6379"
+    networks:
+      - app-network
+
+  app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/to-do-list
+      - REDIS_URL=redis://redis:6379/
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - PYTHONPATH=/app
     volumes:
-      - redis-data:/data
+      - .:/app
+    networks:
+      - app-network
+    command: >
+      sh -c "python -m alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  telegram-consumer:
+    build:
+      context: .
+      dockerfile: app/services/Dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - TELEGRAM_BOT_TOKEN=token
+      - PYTHONPATH=/app
+    command: python -m app.services.consumer
+    volumes:
+      - .:/app
+    restart: always
     networks:
       - app-network
 
