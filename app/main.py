@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
 from app.routers import router
 
 from fastapi_cache import FastAPICache
@@ -10,6 +11,9 @@ from fastapi_cache.backends.redis import RedisBackend
 from redis import asyncio as aioredis
 
 from prometheus_fastapi_instrumentator import Instrumentator
+
+from prometheus import Alert
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -25,9 +29,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 app.include_router(router)
 
+metrics = []
+@app.post("/alert")
+def post_alert(alert: Alert):
+    metrics.append(alert)
+    return alert
+
+
 instrumentator = Instrumentator(
     should_group_status_codes=False,
-    excluded_handlers=[".*admin.*", "/metrics"]
+    excluded_handlers=[".*admin.*", "/metrics"],
 )
 
 instrumentator.instrument(app).expose(app)

@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.error import TelegramError
 
 RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
-TELEGRAM_BOT_TOKEN = token
+TELEGRAM_BOT_TOKEN = "7866422786:AAFRyIUIp734dKU3UEMG8e9R7ExvhLmcCMY"
 
 chat_id_storage = set()
 

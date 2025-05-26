@@ -53,7 +53,7 @@ services:
       - rabbitmq
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - TELEGRAM_BOT_TOKEN=token
+      - TELEGRAM_BOT_TOKEN=7866422786:AAFRyIUIp734dKU3UEMG8e9R7ExvhLmcCMY
       - PYTHONPATH=/app
     command: python -m app.services.consumer
     volumes:
@@ -67,8 +67,13 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"  # Prometheus metrics port
+    environment:
+      - RABBITMQ_PLUGINS_EXPAND=true
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbitmq_prometheus
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq_enabled_plugins:/etc/rabbitmq/enabled_plugins
     networks:
       - app-network
 
@@ -103,6 +108,22 @@ services:
     networks:
       - app-network
 
+  alertmanager:
+    image: prom/alertmanager:v0.24.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager:/etc/alertmanager
+      - alertmanager-data:/data
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/data'
+    restart: always
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
@@ -113,3 +134,4 @@ volumes:
   rabbitmq-data:
   prometheus-data:
   grafana-data:
+  alertmanager-data:

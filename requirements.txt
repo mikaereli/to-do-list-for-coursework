@@ -10,3 +10,4 @@ prometheus-fastapi-instrumentator>=6.0.0
 fastapi-cache2>=0.2.1
 python-telegram-bot>=20.6
 alembic>=1.10.0
+prometheus_alert_model==1.0.0

@@ -44,4 +44,3 @@ async def remove_task(number: int) -> dict[str, str]:
     await TaskService.delete(number=number)
     return {"message": f"Task #{number} deleted successfully"}
 
-
